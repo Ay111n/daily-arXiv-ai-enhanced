@@ -47,6 +47,24 @@ class ArxivSpider(scrapy.Spider):
             if not paper_dd:
                 continue
             
+            # ==================== 【新增核心代码：关键词防火墙】 ====================
+            # 1. 从 dd 标签中提取论文的标题文本（并去掉前缀 "Title: "）
+            title_raw = paper_dd.css(".list-title").xpath("string(.)").get()
+            title = title_raw.replace("Title:", "").strip() if title_raw else ""
+            
+            # 2. 定义你的关键词列表（不区分大小写）
+            MY_KEYWORDS = ["tibetan"]
+            # MY_KEYWORDS = ["tibetan", "low-resource", "multilingual", "chain-of-thought", "reasoning", "thinking", "align"]
+            
+            # 3. 校验标题是否含有关键词
+            if title:
+                has_keyword = any(kw.lower() in title.lower() for kw in MY_KEYWORDS)
+                if not has_keyword:
+                    # 如果不包含关键词，直接跳过本篇论文，既不 yield 也不打印 info 日志
+                    self.logger.debug(f"Skipped paper {arxiv_id}: Title does not match keywords.")
+                    continue 
+            # ====================================================================
+
             # 提取论文分类信息 - 在subjects部分
             subjects_text = paper_dd.css(".list-subjects .primary-subject::text").get()
             if not subjects_text:
@@ -65,7 +83,7 @@ class ArxivSpider(scrapy.Spider):
                         "id": arxiv_id,
                         "categories": list(paper_categories),  # 添加分类信息用于调试
                     }
-                    self.logger.info(f"Found paper {arxiv_id} with categories {paper_categories}")
+                    self.logger.info(f"✨ Found target paper {arxiv_id} with keywords: {title}")
                 else:
                     self.logger.debug(f"Skipped paper {arxiv_id} with categories {paper_categories} (not in target {self.target_categories})")
             else:
